@@ -1,0 +1,4 @@
+# Nothing to build here — this repo is just the installer script.
+*.log
+.DS_Store
+Thumbs.db

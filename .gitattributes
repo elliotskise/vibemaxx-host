@@ -1,0 +1,4 @@
+# This repo ships a shell script fetched via `curl | bash`. CRLF would break the
+# shebang (`/usr/bin/env bash\r`), so force LF for everything.
+* text=auto eol=lf
+*.sh text eol=lf
