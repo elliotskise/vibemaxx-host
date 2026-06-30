@@ -7,8 +7,8 @@ app connects to the host over WebSocket ("Connected mode").
 This repo contains **only the installer**. The daemon ships as a self-contained **release
 tarball** (the built daemon + its native modules + a bundled Node runtime) attached to this
 repo's [Releases](https://github.com/elliotskise/vibemaxx-host/releases). The installer downloads
-it and wires up a hardened systemd service — your server **never runs npm and never compiles
-anything**.
+it and wires up a hardened systemd service — your server **runs no compiler**, and only pulls in
+npm if you opt to install agent CLIs (see [Installing agents](#installing-agents-on-the-host)).
 
 ## Install
 
@@ -61,6 +61,28 @@ ssh -N -L 8765:127.0.0.1:8765 <user>@<your-vps>
 # app → URL: ws://127.0.0.1:8765   Token: (printed by the installer)
 ```
 
+## Installing agents on the host
+
+Agent sessions run on the **VPS**, so the agent CLIs must be installed there — and with the
+right Linux installer, regardless of whether your laptop runs Windows, macOS, or Linux. The
+desktop app's "Agents" tab is keyed to *your* machine's OS, so a Windows client would otherwise
+hand you a PowerShell `irm …` one-liner that can't run on the Linux box. Two ways to install:
+
+```bash
+# 1. With a fresh install (or alongside --tailscale):
+curl -fsSL https://raw.githubusercontent.com/elliotskise/vibemaxx-host/main/install.sh \
+  | sudo bash -s -- --tailscale --install-agent claude-code --install-agent codex
+
+# 2. Against an existing install — just adds the agents, no re-download, no restart:
+sudo bash install.sh --install-agent grok --agent-npm @some/cli
+```
+
+The installer gives the `vibemaxx` user its own writable npm prefix (`~/.npm-global`) and puts it
+on the daemon's `PATH`, so agents install without root and resolve in new sessions automatically.
+npm itself (Node 20) is pulled in **on demand** only when you ask for an agent — the base install
+stays compiler/npm-free. Once an agent is installed, the desktop app's in-app **Install** button
+also works (in Connected mode it runs the Linux installer on the host).
+
 ## What it does
 
 1. Installs prerequisites (`curl`, `tar`, `git`, `ca-certificates`) — **no compiler, no npm**.
@@ -70,9 +92,12 @@ ssh -N -L 8765:127.0.0.1:8765 <user>@<your-vps>
    for rollback).
 4. Creates a dedicated **non-root** `vibemaxx` user and a `~/projects` working dir.
 5. Generates a bearer token into `/etc/vibemaxx/host.env` (mode 0600), reused on re-runs.
-6. Installs a **hardened** systemd unit (loopback-bound, `ProtectSystem=strict`,
-   `ProtectHome=read-only`, `NoNewPrivileges`) and starts it.
-7. With `--domain`, installs Caddy for automatic-TLS `wss://`.
+6. Prepares a writable npm prefix (`~/.npm-global`) + agent dirs for the `vibemaxx` user so
+   agent CLIs can be installed without root.
+7. Installs a **hardened** systemd unit (loopback-bound, `ProtectSystem=strict`,
+   `ProtectHome=read-only`, `NoNewPrivileges`, with the agent dirs as `ReadWritePaths`) and starts it.
+8. With `--install-agent` (etc.), installs the requested agent CLIs; with `--domain`, installs
+   Caddy for automatic-TLS `wss://`.
 
 It is **idempotent** — re-run it to update to the latest release; the token and data are preserved.
 
@@ -87,6 +112,9 @@ It is **idempotent** — re-run it to update to the latest release; the token an
 | `--tailscale-authkey <k>` | Tailscale auth key (`tskey-...`) for non-interactive setup. |
 | `--tailscale-hostname <n>` | Tailnet hostname for this VPS (default: the machine's hostname). |
 | `--domain <host>` | Domain pointed at this VPS; installs Caddy for automatic-TLS `wss://`. |
+| `--install-agent <name>` | Install an agent CLI: `codex`, `claude-code`, `grok`, `antigravity`, `opencode`, `cursor`. Repeatable. |
+| `--agent-npm <package>` | Install an arbitrary npm global package as an agent. Repeatable. |
+| `--agent-sh <command>` | Install via an arbitrary shell one-liner (run as the `vibemaxx` user). Repeatable. |
 | `--github-token <tok>` | GitHub token for authenticated git push/pull from the host. |
 | `--token <tok>` | Use this bearer token instead of generating one. |
 | `--port <n>` | Loopback port (default `8765`). |
